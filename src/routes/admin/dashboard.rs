@@ -1,9 +1,10 @@
 use crate::session_state::TypedSession;
 use crate::utils::e500;
-use actix_web::http::header::{ContentType, LOCATION};
-use actix_web::{web, HttpResponse};
+use actix_web::http::header::LOCATION;
+use actix_web::{http::header::ContentType, web, HttpResponse};
 use anyhow::Context;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 pub async fn admin_dashboard(
     session: TypedSession,
@@ -26,27 +27,23 @@ pub async fn admin_dashboard(
     <title>Admin dashboard</title>
 </head>
 <body>
-    <p>Welcome {}!</p>
+    <p>Welcome {username}!</p>
     <p>Available actions:</p>
     <ol>
         <li><a href="/admin/password">Change password</a></li>
-        <li><a href="/admin/newsletters">Publish a newsletter issue</a></li>
         <li>
-            <a href="javascript:document.logoutForm.submit()">Logout</a>
-            <form name="logoutForm" action="/admin/logout" method="post" hidden>
-                <input hidden type="submit" value="Logout">
-            </form>
+          <form name="logoutForm" action="/admin/logout" method="post">
+            <input type="submit" value="Logout">
+          </form>
         </li>
     </ol>
-</form> 
 </body>
 </html>"#,
-            username
         )))
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]
-pub async fn get_username(user_id: uuid::Uuid, pool: &PgPool) -> Result<String, anyhow::Error> {
+pub async fn get_username(user_id: Uuid, pool: &PgPool) -> Result<String, anyhow::Error> {
     let row = sqlx::query!(
         r#"
         SELECT username
@@ -57,6 +54,6 @@ pub async fn get_username(user_id: uuid::Uuid, pool: &PgPool) -> Result<String, 
     )
     .fetch_one(pool)
     .await
-    .context("Failed to performed a query to retrieve a username.")?;
+    .context("Failed to perform a query to retrieve a username.")?;
     Ok(row.username)
 }
