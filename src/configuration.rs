@@ -3,7 +3,6 @@ use crate::email_client::EmailClient;
 use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
-use sqlx::ConnectOptions;
 use std::convert::{TryFrom, TryInto};
 
 #[derive(serde::Deserialize, Clone)]
@@ -50,9 +49,7 @@ impl DatabaseSettings {
     }
 
     pub fn with_db(&self) -> PgConnectOptions {
-        let mut options = self.without_db().database(&self.database_name);
-        options.log_statements(tracing::log::LevelFilter::Trace);
-        options
+        self.without_db().database(&self.database_name)
     }
 }
 
@@ -87,12 +84,8 @@ impl EmailClientSettings {
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
-    let mut settings = config::Config::default();
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let configuration_directory = base_path.join("configuration");
-
-    // Read the "default" configuration file
-    settings.merge(config::File::from(configuration_directory.join("base")).required(true))?;
 
     // Detect the running environment.
     // Default to `local` if unspecified.
@@ -100,17 +93,24 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .unwrap_or_else(|_| "local".into())
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
+    let environment_filename = format!("{}.yaml", environment.as_str());
+    let settings = config::Config::builder()
+        .add_source(config::File::from(
+            configuration_directory.join("base.yaml"),
+        ))
+        .add_source(config::File::from(
+            configuration_directory.join(environment_filename),
+        ))
+        // Add in settings from environment variables (with a prefix of APP and '__' as separator)
+        // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
+        .add_source(
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"),
+        )
+        .build()?;
 
-    // Layer on the environment-specific values.
-    settings.merge(
-        config::File::from(configuration_directory.join(environment.as_str())).required(true),
-    )?;
-
-    // Add in settings from environment variables (with a prefix of APP and '__' as separator)
-    // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
-    settings.merge(config::Environment::with_prefix("app").separator("__"))?;
-
-    settings.try_into()
+    settings.try_deserialize::<Settings>()
 }
 
 /// The possible runtime environment for our application.

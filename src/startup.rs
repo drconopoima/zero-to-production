@@ -34,7 +34,7 @@ impl Application {
             "{}:{}",
             configuration.application.host, configuration.application.port
         );
-        let listener = TcpListener::bind(&address)?;
+        let listener = TcpListener::bind(address)?;
         let port = listener.local_addr().unwrap().port();
         let server = run(
             listener,
@@ -59,9 +59,7 @@ impl Application {
 }
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
-    PgPoolOptions::new()
-        .connect_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.with_db())
+    PgPoolOptions::new().connect_lazy_with(configuration.with_db())
 }
 
 pub struct ApplicationBaseUrl(pub String);
